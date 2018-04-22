@@ -28,9 +28,19 @@ All experiments will take place on a pair of 64-bit Windows 10 machines with Ubu
 \section{Algorithms}
 %-------------------------------------------%
 
-Our approach to creating this AI is to use a modular multi-layer recurrent neural network. One of the modules will parse the visual buffer using either scene segmentation or a autoencoder, depending on which of these techniques yields better results. The goal is to have the AI plan its actions and then learn from its guesses by using the recurrent neural network model. Furthermore, it will be able to understand more abstract qualities of the visual buffer by using its multiple layers.
+The artificial neural network takes 2 inputs and produces 1 output. These are \textit{x}, \textit{y\textsubscript{1}}, and \textit{y}, respectively.
 
-The specific RNN model we use will change as we experiment. Training shall be achieved using gradient descent.
+The primary input, \textit{x}, is of a video clip consisting of 60 gray-scale frames, where each frame is 80 by 45 pixels with 1 color channel. The auxiliary input, \textit{y\textsubscript{1}}, contains the most recent actions taken by the player; these are represented by an array containing 9 integers, where each index of the array is associated with a different action and contains either a 1 if the player took that action or a 0 if not.
+
+The video clips are processed by a stack of four 2D convolutional LSTM layers that are buffered with 2D batch normalization layers. At the same time, the recent actions are fed into a stack of two normal LSTM layers. Next, both stacks are concatenated together. The resulting concatenation is then given to a deep neural network containing RELU activations. Finally, this leads to the output layer, \textit{y\textsubscript{1}}; this layer applies a sigmoid function across 9 nodes, where each node again represents each of the different actions available to the player. In this case, the layer is predicting which actions are about to be taken by the player.
+
+During training and testing, \textit{y\textsubscript{1}} is always the \textit{y} from the previous frame. During live game-play, however, each value from \textit{y} is converted into either 1 or 0 based on a threshold value. The result of this thresholding is then used as the next \textit{y\textsubscript{1}}.
+
+\begin{figure}
+    \caption{High-level overview of the neural network}
+    \centering
+    \includegraphics[scale = 0.5]{network.png} \\
+\end{figure}
 
 %-------------------------------------------%
 
