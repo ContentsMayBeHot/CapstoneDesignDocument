@@ -6,7 +6,7 @@
 
 Artificial intelligence (hereafter referred to as AI) in video games has often been used for either academic research or customer analytics. This project attempts to use machine learning techniques in a way that the general public can appreciate and, ultimately, interact with.
 
-More specifically, the goal of this project is to train an artificial neural network to play \textit{Rivals of Aether} using replays. This presents three significant obstacles: 1) converting the replay data into a labeled dataset, 2) designing and training the artificial neural network, and 3) writing a game agent that can send data to and receive instructions from the neural network during gameplay.
+More specifically, the goal of this project is to train an artificial neural network to play Rivals of Aether using replay files. This presents three significant obstacles: 1) converting the replay data into a labeled dataset, 2) designing and training the artificial neural network, and 3) writing a game agent that can send data to and receive instructions from the neural network during gameplay.
 
 %-------------------------------------------%
 
@@ -17,7 +17,7 @@ More specifically, the goal of this project is to train an artificial neural net
 
  In order to employ machine learning techniques as a means for entertainment, this project seeks to develop a videogame AI opponent that is fun to play against. The AI shall only be able to make use of the visual buffer as its input. There are two reasons for this constraint. Firstly and chiefly, the visual buffer is readily available from outside of the game's runtime, and can therefore be obtained without the use of hooks or APIs provided by said runtime. This decouples the techniques used to inform and train the agent from any specific game implementation, thereby rendering those techniques reusable. Secondly, if the AI can effectively play with only access to the visual buffer, then it will essentially be playing with the same information with which a human would play. Additionally, this constraint further differentiates the AI from conventional game agents, which are allowed to make decisions based on explicit and concisely packaged game state information such as coordinates, predefined navigational paths, and health points.
  
- The AI produced in this project will play \textit{Rivals of Aether}, which is a two-dimensional or 2D fighting game created by independent game developer Dan Fornace \cite{RivalsofAether}.
+ The AI produced in this project will play Rivals of Aether, which is a two-dimensional or 2D fighting game created by independent game developer Dan Fornace \cite{RivalsofAether}.
 
 %-------------------------------------------%
 
