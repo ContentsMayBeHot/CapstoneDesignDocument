@@ -8,9 +8,7 @@ The project consists of several core components: a SerpentAI game agent plugin, 
 
 The first stage of the project is data preprocessing. This consists of converting the replay files into a labeled dataset. Replays serve as the foundation for the project's data component. They are plain text files with a \textit{.roa} extension. They contain all of the information needed to reproduce a match in \textit{Rivals of Aether}. The first few lines contain meta data and information about the match rules, such as the time stamp, which level the match took place on, the game version, lives count, et cetera. Subsequent lines provide information about each player such as their name, character, and an enumerated list of every action they took during the entirety of the match. Actions are enumerated by their offset from the first frame. For example if a player presses the the attack button on frame 216 and releases it 15 frames later, then the actions will contain something that looks like the following: \textit{216A231a}. The capital \textit{A} indicates that the button was pressed and the lowercase \textit{a} shows the button being released.
 
-The replay parser converts all of the information stored in a replay file into a convenient object-oriented wrapper. Rules and meta data are stored in attribute, enumerations provide human-readable names for action codes, and methods allow for the conversion of player action data into more usefully formatted matrices.
-
-The dataset management program uses the replay parser to process all of the replays. It moves them into folders corresponding with their game versions. This results in the following directory structure:
+The replay parser converts all of the information stored in a replay file into a convenient object-oriented wrapper. Rules and meta data are stored in attribute, enumerations provide human-readable names for action codes, and methods allow for the conversion of player action data into more usefully formatted matrices. The dataset management program uses the replay parser to process all of the replays. It moves them into folders corresponding with their game versions. This results in the following directory structure:
 
 %% Source: https://tex.stackexchange.com/a/270761
 \begin{forest}
@@ -97,6 +95,12 @@ Frame collection is one of the tasks fulfilled by the SerpentAI game agent. This
     ]
 \end{forest}
 
+\begin{figure}
+    \caption{Game agent data flow}
+    \centering
+    \includegraphics[scale = 0.75]{dataflow.png} \\
+\end{figure}
+
 Alongside the version folders there are now two new folders called \textit{frames} and \textit{labels}. Each frame collected by the agent gets dumped into its own \textit{x.npy} file located in replays/frames/replay-title. The \textit{x} in the file name is replaced by a number representing its offset from the first frame. An offset of 1, for example, describes the second frame, while an offset of 99 describes the 100th frame. Meanwhile, each player's actions are converted to a matrix format and then dumped into \textit{replays/labels/replay-title} as \textit{roa\_x.npy}, where \textit{x} identifies the player (e.g. player 1 or player 2).
 
 Actually tracking the replays and moving them into the game's replays folder is handled by the dataset manager. During collection, only 1 replay is allowed in the game's replays folder at a time. Thus, the dataset manager tracks which replays are visited and, when asked, deletes the contents of the replays folder before copying over the next replay. When the manager reports that there are no replays left for the selected game version, the collection agent knows to stop.
@@ -147,14 +151,6 @@ By default, 80 percent of the replays will go into the \textit{training} folder 
 
 There are several expensive operations that the worker thread handles. First, it loads all of the frames from the file system into memory. Then it explodes the label data. Exploding the labels is necessary because there is no guarantee that the frames that were collected are the frames on which actions took place. For example, consider a situation in which frames 6, 17, and 25 were collected by the game agent. According to the replay file, player 1 pressed the jump key in frame 3, released it on frame 15, and then pressed it again on frame 82. The replay file contains no references to the collected frames. One might assume that there is nothing to do; the collected frames are useless. However, it is entirely possible to extrapolate the button states for all of the frames that were collected, even if the replay file contains no references to them. The jump key was pressed on frame 3 and released on frame 15, which means that it was in a pressed state on frame 6. Given that the jump button is not pressed again until 82, it's safe to assume that it is in an unpressed state on frames 17 and 25. If this process is repeated for all 9 buttons across the entire replay, then all of the collected frames can be given accurate labels.
 
-\begin{figure}
-	\caption{Data flow within our software stack}
-	\centering
-		\includegraphics[scale = 0.75]{dataflow.png} \\
-\end{figure}
-
-With the replay loader, it is possible to efficiently train and test a machine learning model.
-
 %-------------------------------------------%
 
 \section{Frameworks}
@@ -171,13 +167,13 @@ All experiments will take place on a pair of 64-bit Windows 10 machines with Ubu
 \section{Algorithms}
 %-------------------------------------------%
 
-The artificial neural network takes 2 inputs and produces 1 output. These are \textit{x}, \textit{y\textsubscript{1}}, and \textit{y}, respectively.
+The artificial neural network takes 2 inputs and produces 1 output. These are called \textit{x}, \textit{y\textsubscript{1}}, and \textit{y}, respectively.
 
-The primary input, \textit{x}, is of a video clip consisting of 60 gray-scale frames, where each frame is 80 by 45 pixels with 1 color channel. The auxiliary input, \textit{y\textsubscript{1}}, contains the most recent actions taken by the player; these are represented by an array containing 9 integers, where each index of the array is associated with a different action and contains either a 1 if the player took that action or a 0 if not.
+The primary input, \textit{x}, is a video clip consisting of 60 gray-scale frames, where each frame is 80 by 45 pixels with 1 color channel. The auxiliary input, \textit{y\textsubscript{1}}, contains the most recent actions taken by the player; these are represented by an array containing 9 integers, where each index of the array is associated with a different action and contains either a 1 if the player took that action or a 0 if not.
 
-The video clips are processed by a stack of four 2D convolutional LSTM layers that are buffered with 2D batch normalization layers. At the same time, the recent actions are fed into a stack of two normal LSTM layers. Next, both stacks are concatenated together. The resulting concatenation is then given to a deep neural network containing RELU activations. Finally, this leads to the output layer, \textit{y\textsubscript{1}}; this layer applies a sigmoid function across 9 nodes, where each node again represents each of the different actions available to the player. In this case, the layer is predicting which actions are about to be taken by the player.
+The video clips are processed by a stack of four 2D convolutional LSTM layers that are buffered with 2D batch normalization layers. At the same time, the recent actions are fed into a stack of two normal LSTM layers. Next, both stacks are concatenated together. The resulting concatenation is then given to a deep neural network containing RELU activations. Finally, this leads to the output layer, which applies a sigmoid function across 9 nodes, where each node again represents each of the different actions available to the player. In this case, the output layer is a prediction of which actions the player will take next.
 
-During training and testing, \textit{y\textsubscript{1}} is always the \textit{y} from the previous frame. During live game-play, however, each value from \textit{y} is converted into either 1 or 0 based on a threshold value. The result of this thresholding is then used as the next \textit{y\textsubscript{1}}.
+During training and testing, \textit{y\textsubscript{1}} is always the \textit{y} from the previous frame. During live , however, each value from \textit{y} is converted into either 1 or 0 based on a threshold value. The result of this thresholding is then used as the next \textit{y\textsubscript{1}}.
 
 \begin{figure}
     \caption{High-level overview of the neural network}
@@ -192,7 +188,7 @@ During training and testing, \textit{y\textsubscript{1}} is always the \textit{y
 \section{Features}
 %-------------------------------------------%
 
-In order to play Rivals of Aether, one must use a set of controls containing a total of nine buttons, where five are for actions such as attacking or dodging and four are for movement.
+\textit{Rivals of Aether} has, in total, 9 buttons in its control scheme. These include 4 directional buttons for movement, a jump button, a dodge button, and buttons for 3 types of attacks.
 
 \begin{figure}
 	\caption{In-game menu displaying game controls}
@@ -200,9 +196,7 @@ In order to play Rivals of Aether, one must use a set of controls containing a t
 	\includegraphics[scale = 0.5]{controls.png} \\
 \end{figure}
 
-These buttons can be combined for different effects. An attack will undergo significant changes depending on if the attacking character is standing, walking, running, or jumping. Furthermore, tilting the control stick during the attack will effect additional changes. Dodging in the air is different from doing so on the ground, which is different still from dodging while moving the control stick in a direction.
-
-Due to the complex nature of the game's control scheme, at any given moment the AI will need to be able to output any combination of two simultaneous button presses, where one of the buttons is for movement and the other is for an action.
+Pressing the left and right directional buttons results in no movement; the same applies to up and down. Otherwise, all button combinations are valid. Thus, the model uses a sigmoid function to predict values between 0 and 1 for each of the 9 buttons. This allows the game agent to use the model's prediction along with an adjustable threshold in order to determine whether or not it should press or release any given button.
 
 %-------------------------------------------%
 
@@ -215,9 +209,9 @@ The full dataset contains a total of 1,032 replay files provided by the Rivals o
 
 The amount of data can still be increased, however. Replays contain input data for a minimum of 2 players and a maximum of 4. This one-to-many relation from replays to players can be exploited if each combination of a replay and player is treated as a separate video. In other words, the frame buffer for replay \textit{R} can be used not only with the input data for player \textit{\textit{P\textsubscript{1}}} but also with those of players \textit{P\textsubscript{2-4}}. Exploding the dataset in this fashion yields a total of 1271 replays for training and 332 replays for testing. 
 
-A training session will run as follows. The SerpentAI agent will traverse the game's menus to initiate playback of the next replay from a shuffled copy of the training set. While the match is simulated, the agent will simultaneously read the visual buffer from the game and control input data from the replay file. For each frame, the agent will pair the input data with its corresponding visual buffer and then send this bundle to a TensorFlow neural network as labels and data, respectively. The neural network will attempt to produce a set of appropriate control inputs in response and adjust its weights  whenever its prediction are incorrect. When playback has concluded, the agent will traverse the menus once again to start a new replay, repeatedly, until it has reached its quota. The total number of training iterations will vary between experiments until it produces satisfactory results.
+During the course of training, the model logs its accuracy and loss metrics using a dataframe. After training is complete, the dataframe is saved as CSV file. A separate dataframe and CSV are used for testing. The training and testing accuracy can be compared with each other in order to reveal overfitting. Observing the change in accuracy over time also shows whether or not additional data is helping the model improve. This can also show whether or not multiple epochs are making a difference.
 
-A properly trained neural network shall demonstrate several qualities other than a high accuracy when tested against the held back data. Firstly, it shall be able to defeat low-level in-game bots, thereby demonstrating its competence. This can be tested by placing the neural network in matches against bots of increasing difficulty, thereby enabling the assignment of numerical performance benchmarks. Secondly, it shall play in a believably-human manner. This means that it should, wherever possible, be discouraged from playing {\it inhumanly} well, getting stuck, or displaying mechanical tics. Examples of these undesirable behaviors would include, in order, executing nonstop frame-perfect moves throughout the course of an entire game, running off of the stage or standing still due to an as-of-yet unseen situation, or constantly changing direction for no reason while otherwise playing competently. Identifying all such behaviors will be difficult prior to live experiments, however.
+A properly trained model should demonstrate several qualities other than a high accuracy, however. When used by the game agent, the model should make competent gameplay decisions. This can be tested by placing the agent in matches against bots of varying difficulty. Furthermore, the model should cause the agent to behave in a convincingly human-like manner. This means that it should not get stuck or frozen, and it shouldn't engage in strange behavior such as running back and forth or repeatedly jumping off of the stage. This also means that it should not play unrealistically well, such as with by executing frame-perfect moves throughout an entire match.
 
 %-------------------------------------------%
 
@@ -226,16 +220,8 @@ A properly trained neural network shall demonstrate several qualities other than
 \section{Criteria and Constraints}
 %-------------------------------------------%
 
-Initial work on the neural network implementation is due to start on December 12, 2017, shortly after the conclusion of the 2017 Fall Semester. This work should be concluded by mid-March. From there, about two weeks are allocated for finalizing the design document. Overall, the schedule is intentionally tight in order to emphasize getting most of the work done in the beginning of the semester, thereby maximizing flex time and minimizing the competition between this project and other finals.
+The dataset used in this project was contributed by the \textit{Rivals of Aether} subreddit community on \textit{/r/rivalsofaether}. Replays received from the community are considered private information and may not, under any circumstances, be redistributed. Only replays recorded by the researchers may be included as sample data in the public repositories associated with the project. Care must be taken, however, in order to avoid loss of data. The replays should be stored in multiple secure locations including at least one encrypted Cloud storage service.
 
-\begin{figure}
-	\caption{Gantt chart}
-	\centering
-	\includegraphics[scale = 0.5]{gantt.png} \\
-\end{figure}
-
-The project has other constraints in addition to its schedule. The dataset was collected from the community with the promise that each replay file we receive will be treated as private data and not, under any circumstances, be redistributed. Thus, care shall be taken to ensure that no replay files from the community are leaked. At the same time, however, these files must not be lost due to accidental deletion, disk failure, or lack of backup. To address these requirements, multiple redundant copies of the dataset are stored on our own local drives as well as via encrypted, private, cloud storage services such as Google Drive. Only the dozen or so replay files that we brought to the dataset ourselves may be stored publicly on the GitHub repository.
-
-Our experiments will be deemed adequately successful if we can produce AI that beat the in-built bots on lowest difficulty levels. This is considered a baseline that we will attempt to surpass through improvements to the neural network and additional training.
+The data processing pipeline constitutes the most significant portion of this project. The machine learning implementation is only a proof of concept, and the game agent's gaming competence should not be used to measure the success of the project.
 
 %-------------------------------------------%
