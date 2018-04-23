@@ -4,13 +4,152 @@
 \section{Design}
 %-------------------------------------------%
 
-Our game agent will use the SerpentAI API to retrieve the frame buffer from the game's runtime. This buffer will then be passed to our TensorFlow neural network via Keras. The neural network will interpret the frame buffer and then produce an output consisting of up to two simultaneous button presses, which will get passed all the way back along the chain to the game runtime. Through all of this, SerpentAI will be making frequent use of a Redis database as well as modules provided by Anaconda. Also, TensorFlow will utilize the GPU for its computations using the CUDA toolkit.
+The project consists of several core components: a SerpentAI game agent plugin, a dataset management program, a frame-action synchronizer, a replay parser, and a machine learning program.
+
+The first phase of the project is data preprocessing. This consists of converting the plaintext replay files into a labeled dataset. The dataset management program is used to move all of the replay files into folders corresponding with their game versions. This results in the following directory structure:
+
+%% Source: https://tex.stackexchange.com/a/270761
+\begin{forest}
+    for tree={
+        font=\ttfamily,
+        grow'=0,
+        child anchor=west,
+        parent anchor=south,
+        anchor=west,
+        calign=first,
+        edge path={
+            \noexpand\path [draw, \forestoption{edge}]
+            (!u.south west) +(7.5pt,0) |- node[fill,inner sep=1.25pt] {} (.child anchor)\forestoption{edge label};
+        },
+        before typesetting nodes={
+            if n=1
+            {insert before={[,phantom]}}
+            {}
+        },
+        fit=band,
+        before computing xy={l=15pt},
+    }
+    [replays
+        [00\_15\_07]
+        [00\_15\_08]
+        [00\_15\_09]
+        [00\_15\_10]
+        [00\_15\_11]
+        [01\_00\_02]
+        [01\_00\_03]
+        [01\_00\_05]
+        [01\_01\_02]
+        [01\_02\_01]
+        [01\_02\_02]
+    ]
+\end{forest}
+
+In the example above, \textit{00\_15\_07} refers to game version 0.15.7, \textit{01\_02\_01} to 1.2.1, and so on. The game version matters because replays are not compatible across different game versions. If a replay has a stage or character that does not exist in the running version of the game, then the replays menu will actually crash when loaded. Thus, with all of the replay files sorted in the manner shown above, frame collection is made possible.
+
+Frame collection is one of the tasks fulfilled by the SerpentAI game agent. This consists of playing back each replay for the currently installed version of the game, one at a time, while dumping the frame buffer to the file system via serialization. The game agent reliably controls playback using simple timed input sequences. The duration of a replay is not explicitly given by a replay file, but can be estimated with sufficient accuracy by identifying the highest frame index and then converting that number to seconds. For example, the final action for player 1 may happen on frame 8,961, while the final action for player 2 is on 8,954. Given a frame rate of 60 frames per second, this means that player 1 stopped playing after 149.35 seconds and player 2 after 149.23. Thus, the match duration was almost certainly 150 seconds. Knowing this, the game agent can count to 150 while collecting frames. After the match has ended, the agent can stop collecting frames and then use timed inputs to initiate playback of the next replay. Over time, a file structure resembling this will develop:
+
+%% Source: https://tex.stackexchange.com/a/270761
+\begin{forest}
+    for tree={
+        font=\ttfamily,
+        grow'=0,
+        child anchor=west,
+        parent anchor=south,
+        anchor=west,
+        calign=first,
+        edge path={
+            \noexpand\path [draw, \forestoption{edge}]
+            (!u.south west) +(7.5pt,0) |- node[fill,inner sep=1.25pt] {} (.child anchor)\forestoption{edge label};
+        },
+        before typesetting nodes={
+            if n=1
+            {insert before={[,phantom]}}
+            {}
+        },
+        fit=band,
+        before computing xy={l=15pt},
+    }
+    [replays
+        [00\_15\_07]
+        [...]
+        [01\_02\_02]
+        [frames
+            [2017-11-07-234316128959]
+            [...]
+            [2017-11-07-234241093349
+                [0.npy]
+                [...]
+                [4475.npy]
+            ]
+        ]
+        [labels
+            [2017-11-07-234316128959]
+            [...]
+            [2017-11-07-234241093349
+                [roa\_1.npy]
+                [roa\_2.npy]
+            ]
+        ]
+    ]
+\end{forest}
+
+Alongside the version folders there are now two new folders called \textit{frames} and \textit{labels}. Each frame collected by the agent gets dumped into its own \textit{x.npy} file located in replays/frames/replay-title. The \textit{x} in the file name is replaced by a number representing its offset from the first frame. An offset of 1, for example, describes the second frame, while an offset of 99 describes the 100th frame. Meanwhile, each player's actions are converted to a matrix format and then dumped into \textit{replays/labels/replay-title} as \textit{roa\_x.npy}, where \textit{x} identifies the player (e.g. player 1 or player 2).
+
+Actually tracking the replays and moving them into the game's replays folder is handled by the dataset manager. During collection, only 1 replay is allowed in the game's replays folder at a time. Thus, the dataset manager tracks which replays are visited and, when asked, deletes the contents of the replays folder before copying over the next replay. When the manager reports that there are no replays left for the selected game version, the collection agent knows to stop.
+
+When collection is over, the dataset manager can be used to sort all of the data in the \textit{frames} and \textit{labels} folders across the training and testing sets. Invoking this task will result in the following changes to the file structure:
+
+%% Source: https://tex.stackexchange.com/a/270761
+\begin{forest}
+    for tree={
+        font=\ttfamily,
+        grow'=0,
+        child anchor=west,
+        parent anchor=south,
+        anchor=west,
+        calign=first,
+        edge path={
+            \noexpand\path [draw, \forestoption{edge}]
+            (!u.south west) +(7.5pt,0) |- node[fill,inner sep=1.25pt] {} (.child anchor)\forestoption{edge label};
+        },
+        before typesetting nodes={
+            if n=1
+            {insert before={[,phantom]}}
+            {}
+        },
+        fit=band,
+        before computing xy={l=15pt},
+    }
+    [replays
+        [00\_15\_07]
+        [...]
+        [01\_02\_02]
+        [frames]
+        [labels]
+        [sets
+            [testing
+                [frames]
+                [labels]
+            ]
+            [training
+                [frames]
+                [labels]
+            ]
+        ]
+    ]
+\end{forest}
+
+By default, 80 percent of the replays will go into the \textit{training} folder and the remaining 20 percent into \textit{testing}. The machine learning program includes a specialized loader designed to read datasets in the form shown above. In other words, it can load the training set from \textit{replays/sets/training} and the testing set from \textit{replays/sets/testing}. For either set, the loader gathers a list to every file path in the \textit{frames} and \textit{labels} folders. It then starts a worker thread which loads the frame and label data into a queue, which allows the neural network to run its training and testing loops without getting blocked.
+
+There are several expensive operations that the worker thread handles. First, it loads all of the frames from the file system into memory. Then it explodes the label data. Exploding the labels is necessary because there is no guarantee that the frames that were collected are the frames on which actions took place. For example, consider a situation in which frames 6, 17, and 25 were collected by the game agent. According to the replay file, player 1 pressed the jump key in frame 3, released it on frame 15, and then pressed it again on frame 82. The replay file contains no references to the collected frames. One might assume that there is nothing to do; the collected frames are useless. However, it is entirely possible to extrapolate the button states for all of the frames that were collected, even if the replay file contains no references to them. The jump key was pressed on frame 3 and released on frame 15, which means that it was in a pressed state on frame 6. Given that the jump button is not pressed again until 82, it's safe to assume that it is in an unpressed state on frames 17 and 25. If this process is repeated for all 9 buttons across the entire replay, then all of the collected frames can be given accurate labels.
 
 \begin{figure}
 	\caption{Data flow within our software stack}
 	\centering
 		\includegraphics[scale = 0.75]{dataflow.png} \\
 \end{figure}
+
+With the replay loader, it is possible to use replays to efficiently train a machine learning model.
 
 %-------------------------------------------%
 
