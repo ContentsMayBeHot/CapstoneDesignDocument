@@ -213,6 +213,8 @@ During the course of training, the model logs its accuracy and loss metrics usin
 
 A properly trained model should demonstrate several qualities other than a high accuracy, however. When used by the game agent, the model should make competent gameplay decisions. This can be tested by placing the agent in matches against bots of varying difficulty. Furthermore, the model should cause the agent to behave in a convincingly human-like manner. This means that it should not get stuck or frozen, and it shouldn't engage in strange behavior such as running back and forth or repeatedly jumping off of the stage. This also means that it should not play unrealistically well, such as with by executing frame-perfect moves throughout an entire match.
 
+As with training and testing, the game agent logs the model's predictions using a dataframe. On termination, the game agent saves the full history of predictions from the session to a CSV file. This enables quantitative analysis of the game agent's decisions.
+
 %-------------------------------------------%
 
 
@@ -221,7 +223,5 @@ A properly trained model should demonstrate several qualities other than a high 
 %-------------------------------------------%
 
 The dataset used in this project was contributed by the \textit{Rivals of Aether} subreddit community on \textit{/r/rivalsofaether}. Replays received from the community are considered private information and may not, under any circumstances, be redistributed. Only replays recorded by the researchers may be included as sample data in the public repositories associated with the project. Care must be taken, however, in order to avoid loss of data. The replays should be stored in multiple secure locations including at least one encrypted Cloud storage service.
-
-The data processing pipeline constitutes the most significant portion of this project. The machine learning implementation is only a proof of concept, and the game agent's gaming competence should not be used to measure the success of the project.
 
 %-------------------------------------------%
