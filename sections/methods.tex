@@ -6,7 +6,11 @@
 
 The project consists of several core components: a SerpentAI game agent plugin, a dataset management program, a frame-action synchronizer, a replay parser, and a machine learning program.
 
-The first phase of the project is data preprocessing. This consists of converting the plaintext replay files into a labeled dataset. The dataset management program is used to move all of the replay files into folders corresponding with their game versions. This results in the following directory structure:
+The first stage of the project is data preprocessing. This consists of converting the replay files into a labeled dataset. Replays serve as the foundation for the project's data component. They are plain text files with a \textit{.roa} extension. They contain all of the information needed to reproduce a match in \textit{Rivals of Aether}. The first few lines contain meta data and information about the match rules, such as the time stamp, which level the match took place on, the game version, lives count, et cetera. Subsequent lines provide information about each player such as their name, character, and an enumerated list of every action they took during the entirety of the match. Actions are enumerated by their offset from the first frame. For example if a player presses the the attack button on frame 216 and releases it 15 frames later, then the actions will contain something that looks like the following: \textit{216A231a}. The capital \textit{A} indicates that the button was pressed and the lowercase \textit{a} shows the button being released.
+
+The replay parser converts all of the information stored in a replay file into a convenient object-oriented wrapper. Rules and meta data are stored in attribute, enumerations provide human-readable names for action codes, and methods allow for the conversion of player action data into more usefully formatted matrices.
+
+The dataset management program uses the replay parser to process all of the replays. It moves them into folders corresponding with their game versions. This results in the following directory structure:
 
 %% Source: https://tex.stackexchange.com/a/270761
 \begin{forest}
@@ -149,7 +153,7 @@ There are several expensive operations that the worker thread handles. First, it
 		\includegraphics[scale = 0.75]{dataflow.png} \\
 \end{figure}
 
-With the replay loader, it is possible to use replays to efficiently train a machine learning model.
+With the replay loader, it is possible to efficiently train and test a machine learning model.
 
 %-------------------------------------------%
 
